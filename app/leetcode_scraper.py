@@ -1,39 +1,76 @@
 import cloudscraper
 import logging
-from lxml import html
 
-logging.basicConfig(level=logging.INFO) 
+logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-def scrape_user(username: str) -> dict:
-    url = f"https://leetcode.com/{username}/"
-    logger.info(f"Scraping URL: {url}")
+def scrape_leetcode_data(username: str) -> dict:
+    url = "https://leetcode.com/graphql"
+    logger.info(f"Querying profile for: {username}")
+
+    payload = {
+        "operationName": "getUserProfile",
+        "variables": {"username": username},
+        "query": """
+        query getUserProfile($username: String!) {
+            matchedUser(username: $username) {
+                username
+                submitStatsGlobal {
+                    acSubmissionNum {
+                        difficulty
+                        count
+                        submissions
+                    }
+                }
+                profile {
+                    ranking
+                    reputation
+                    realName
+                }
+                tagProblemCounts {
+                    advanced {
+                        tagName
+                        problemsSolved
+                    }
+                    intermediate {
+                        tagName
+                        problemsSolved
+                    }
+                    fundamental {
+                        tagName
+                        problemsSolved
+                    }
+                }
+            }
+        }
+        """
+    }
 
     try:
         scraper = cloudscraper.create_scraper()
-        logger.debug("Cloudscraper instance created.")
-        
-        response = scraper.get(url)
-        logger.info(f"Received response with status code: {response.status_code}")
+        response = scraper.post(url, json=payload)
+        logger.info(f"Response status code: {response.status_code}")
 
         if response.status_code != 200:
-            logger.error(f"Failed to fetch the page. Status code: {response.status_code}")
-            raise Exception(f"Failed. Status code: {response.status_code}")
+            logger.error("Failed to get data")
+            raise Exception("GraphQL API error")
 
-        tree = html.fromstring(response.content)
-        title = tree.xpath('//title/text()')
-        if not title:
-            logger.warning("No <title> tag found.")
-            raise Exception("Page title not found.")
-        
-        page_title = title[0].strip()
-        logger.info(f"Page title: {page_title}")
+        data = response.json()["data"]["matchedUser"]
 
-        return {
-            "url": url,
-            "page_title": page_title
+        result = {
+            "username": data["username"],
+            "ranking": data["profile"]["ranking"],
+            "reputation": data["profile"]["reputation"],
+            "submission_stats": data["submitStatsGlobal"]["acSubmissionNum"],
+            "topics_practiced": {
+                "fundamental": data["tagProblemCounts"]["fundamental"],
+                "intermediate": data["tagProblemCounts"]["intermediate"],
+                "advanced": data["tagProblemCounts"]["advanced"]
+            }
         }
-    
+
+        return result
+
     except Exception as e:
-        logger.exception("An error occurred while scraping.")
+        logger.exception("Error fetching user profile")
         raise

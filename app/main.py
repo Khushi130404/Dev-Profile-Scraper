@@ -1,6 +1,7 @@
 import logging
 from fastapi import FastAPI, HTTPException
-from .leetcode_scraper import scrape_user
+from .leetcode_scraper import scrape_leetcode_data
+from .github_scraper import scrape_github_data
 
 logging.basicConfig(
     level=logging.INFO,
@@ -21,10 +22,21 @@ def read_root():
     return {"message": "LeetCode Scraper API is running!"}
 
 @app.get("/leetcode/{username}")
-def get_user_data(username: str):
+def get_leetcode_data(username: str):
     logger.info(f"Request received for LeetCode user: {username}")
     try:
-        data = scrape_user(username)
+        data = scrape_leetcode_data(username)
+        logger.info(f"Successfully fetched data for {username}")
+        return {"status": "success", "data": data}
+    except Exception as e:
+        logger.error(f"Error fetching data for {username}: {e}")
+        raise HTTPException(status_code=500, detail="Internal Server Error")
+
+@app.get("/gitbub/{username}")
+def get_github_data(username: str):
+    logger.info(f"Request received for GitHub user: {username}")
+    try:
+        data = scrape_github_data(username)
         logger.info(f"Successfully fetched data for {username}")
         return {"status": "success", "data": data}
     except Exception as e:
